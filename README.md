@@ -71,13 +71,13 @@ However, it is not a complete source of company VAT numbers.
 
 ## 4. Experiments and Findings
 
-### Manual Research
+### 4.1 Manual Research
 
 Manual searches demonstrated that VAT numbers can sometimes be discovered through company websites, search engines and third-party databases.
 
 However, availability varies between companies and no single source provides complete coverage.
 
-### Automated HMRC Checker Testing
+### 4.2 Automated HMRC Checker Testing
 
 A Python browser automation experiment was used to investigate automated VAT validation through the public HMRC checker.
 
@@ -85,7 +85,7 @@ During testing, HTTP 429 (Too Many Requests) responses were encountered.
 
 This demonstrated that repeated automated requests to the public checker are subject to restrictions. Browser automation should not be assumed to be suitable for large-scale validation.
 
-### Checksum Enumeration
+### 4.3 Checksum Enumeration
 
 UK VAT numbers generally contain nine digits and include a checksum mechanism.
 
@@ -116,7 +116,7 @@ The implementation includes:
 - Result cleaning and categorisation.
 - Environment variables for keeping credentials separate from source code.
 
-### Project Structure
+### 5.1 Project Structure
 
 ```text
 uk-vat-research/
@@ -142,7 +142,7 @@ uk-vat-research/
 └── README.md
 ```
 
-### Sandbox vs Production
+### 5.2 Sandbox vs Production
 
 The HMRC Sandbox was used to test the API authentication and request workflow.
 
@@ -150,11 +150,40 @@ Sandbox responses use simulated test data and cannot be treated as confirmation 
 
 Production access and appropriate credentials are required to validate real VAT registrations through the API.
 
-### Interpreting Results
+### 5.3 Quantitative Results – VAT Number Verification
+
+A total of **50 VAT number verification attempts** were recorded during the experiment.
+
+| Result | Count | Percentage |
+|---|---:|---:|
+| VALID | 23 | 46.0% |
+| NOT_FOUND | 10 | 20.0% |
+| RATE_LIMITED | 17 | 34.0% |
+| **Total** | **50** | **100%** |
+
+Out of the 50 attempts, 33 returned a conclusive response, while 17 were rate-limited.
+
+Among the 33 conclusive responses:
+
+- 23 (69.7%) returned valid VAT registration details.
+- 10 (30.3%) returned no result.
+
+**Interpretation and limitations:**
+
+- The 23 VALID responses demonstrate that the verification process returned VAT registration details for those candidate numbers.
+- A VALID response does not, by itself, prove that the VAT number belongs to the intended supplier. Entity-level name and address matching is still required.
+- NOT_FOUND should not automatically be interpreted as proof that a company is not VAT-registered.
+- RATE_LIMITED responses were treated as inconclusive rather than invalid.
+- This was a limited technical experiment, not a statistically representative sample of the 40,000 suppliers.
+- These figures should therefore not be interpreted as expected VAT discovery coverage or overall precision.
+
+The results highlight two separate challenges: obtaining a verification response reliably and correctly associating a VAT registration with the intended supplier.
+
+### 5.4 Interpreting Results
 
 The results must distinguish between:
 
-- **VALID:** HMRC confirms the supplied VAT number.
+- **VALID:** The checker returned valid VAT registration details for the supplied number.
 - **NOT_FOUND:** The supplied number was not found in the checker.
 - **RATE_LIMITED:** The request was restricted.
 - **TECHNICAL_ERROR:** The request could not be completed successfully.
@@ -162,13 +191,15 @@ The results must distinguish between:
 
 A successful VAT validation does not automatically prove that the number belongs to the intended supplier. The registered business name and address must also be compared with supplier records.
 
+The 50-record experiment and the API Sandbox integration test should be interpreted separately: the Sandbox demonstrated the authentication and request workflow, while Sandbox responses do not establish real-world registration status.
+
 ## 6. Data Quality and Maintenance
 
 Companies continuously register and deregister for VAT. Therefore, the dataset should preserve both current status and historical observations.
 
 I would separate company information from VAT registration information.
 
-### Suggested Data Model
+### 6.1 Suggested Data Model
 
 **Companies**
 
@@ -196,7 +227,7 @@ A separate VAT status history table should store the VAT number, observed status
 
 This preserves historical observations instead of simply overwriting previous information.
 
-### Refresh Strategy
+### 6.2 Refresh Strategy
 
 Not all suppliers require the same verification frequency.
 
@@ -209,7 +240,7 @@ I would prioritise:
 
 A failed request or HTTP 429 response must never be interpreted as deregistration. It means verification could not be completed.
 
-### Data Quality Monitoring
+### 6.3 Data Quality Monitoring
 
 The system should identify potential anomalies, including:
 
@@ -238,6 +269,8 @@ Potential bottlenecks include source coverage, API access limits, entity resolut
 Before using any source commercially, I would assess its terms of use, permitted automated access, copyright and database rights, data provenance, update frequency, stability and cost.
 
 Public accessibility does not automatically imply permission for commercial reuse.
+
+A production pilot should measure processing time, discovery yield, verification success rate, manual-review workload and cost per supplier before committing to a full 40,000-supplier rollout.
 
 ## 8. Preferred Sources and Recommendations
 
@@ -286,7 +319,7 @@ python verification/api_check.py
 
 The current implementation uses the HMRC Sandbox endpoint.
 
-Real VAT validation requires appropriate HMRC Production access and credentials.
+Real VAT validation through the API requires appropriate HMRC Production access and credentials.
 
 ## 10. Limitations and Future Improvements
 
@@ -301,6 +334,7 @@ The main limitations are:
 - Production API access is required for real VAT verification through the API.
 - Completeness and recall cannot be reliably measured without a representative sample with known ground truth.
 - Entity resolution remains a significant source of potential false positives.
+- The limited 50-attempt experiment does not establish expected discovery coverage or precision for the target supplier population.
 
 Future work would include:
 
@@ -310,6 +344,7 @@ Future work would include:
 4. Automating permitted website and document discovery.
 5. Introducing human review for ambiguous matches.
 6. Implementing scheduled refreshes and historical status tracking.
+7. Estimating operational costs using measured processing and review times.
 
 ## 11. Conclusion
 
@@ -320,3 +355,34 @@ However, no single source provides complete coverage, and discovering a valid VA
 I would recommend prioritising accuracy over coverage, retaining source provenance and verification history, and treating uncertain matches as unverified rather than making unsupported associations.
 
 The most reliable approach is a multi-source discovery process supported by official HMRC validation and robust entity resolution.
+
+## 12. Additional Research Directions
+
+### Bulk Web Corpora
+
+An alternative to crawling individual company websites would be to investigate existing web corpora or commercial web indexes.
+
+These could potentially reduce crawling costs by allowing searches across already-collected pages and documents.
+
+However, coverage, freshness, access costs and commercial reuse rights would need to be evaluated before relying on such data in production.
+
+### Adjacent Identifiers
+
+I would also investigate whether VAT numbers can be discovered through relationships with other company identifiers.
+
+For example, company registration numbers, legal entity names and registered addresses can help establish identity across different sources.
+
+However, these identifiers should not be assumed to directly reveal a VAT number. Their main value may be improving entity resolution and reducing incorrect matches.
+
+### International Expansion
+
+The UK discovery problem should not automatically be assumed to apply to other countries.
+
+Before expanding into Germany or another European market, I would investigate:
+
+- Whether VAT numbers are publicly searchable by company name.
+- Whether official registries provide bulk access.
+- Whether verification services support automated checks.
+- Whether the same legal entity matching problems exist.
+
+I would prioritise countries where both discovery and official verification are accessible, rather than simply replicating the UK pipeline everywhere.
